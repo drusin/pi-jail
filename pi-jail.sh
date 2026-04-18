@@ -1,19 +1,18 @@
 #!/bin/bash
 
 CONTAINER_NAME="pi-jail"
-SETTING_PATH="/root/.pi/agent"
+PI_PATH="/home/user/.pi"
 
-# Check if the necessary files exist before attempting to run the container
-if [ ! -f "models.json" ] || [ ! -f "settings.json" ]; then
-    echo "Error: models.json and settings.json must exist in the current directory to mount them."
-    exit 1
-fi
+HOST_PI_DIR="$HOME/.pi"
+
+# Ensure the local directory exists so Docker doesn't create it as root
+mkdir -p "$HOST_PI_DIR"
 
 echo "Starting container '$CONTAINER_NAME' interactively with volume mounts..."
 docker run -it --rm \
   --name "$CONTAINER_NAME" \
-  -v "$(pwd)/models.json:$SETTING_PATH/models.json" \
-  -v "$(pwd)/settings.json:$SETTING_PATH/settings.json" \
-  -v "$(pwd)":/workspace \
+  --user 1000:1000 \
+  -v "$HOST_PI_DIR:$PI_PATH" \
+  -v "$(pwd):/workspace" \
   --add-host host.docker.internal=host-gateway \
   pi-jail
