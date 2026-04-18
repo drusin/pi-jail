@@ -18,7 +18,7 @@ RUN userdel -r node || true && \
     useradd --uid 1000 --gid user --shell /bin/bash --create-home user
 
 # Prepare the workspace and set ownership
-RUN mkdir -p /workspace && chown user:user /workspace
+RUN mkdir -p /workspace && chown -R user:user /workspace
 
 # Set the working directory
 WORKDIR /workspace
