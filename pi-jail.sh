@@ -56,4 +56,4 @@ if [ -f "${ENV_FILE}" ]; then
 fi
 
 echo "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
-docker "${docker_args[@]}" "${IMAGE_NAME}" "$@"
+docker "${docker_args[@]}" "${IMAGE_NAME}" pi "$@"

@@ -20,6 +20,8 @@ Run the [pi coding agent](https://[www.npmjs.com/package/@mariozechner/pi-coding
 ## Daily use
 - navigate to a project folder on your host machine
 - run `pi-jail` from there
+- any arguments you pass to `pi-jail` are forwarded to `pi` inside the container
+  - example: `pi-jail -r` runs `pi -r` in the container, which starts pi with an interactive session browser
 - use pi (assuming you have an llm provider set up)
 
 ## Set up dev enironments:

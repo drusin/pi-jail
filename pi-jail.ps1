@@ -68,7 +68,7 @@ if (Test-Path $EnvFile -PathType Leaf) {
 
 # ── Run ──────────────────────────────────────────────────────────────────────
 Write-Host "[pi-jail] Starting pi in: $ContainerWd"
-$dockerArgs += @($ImageName)
+$dockerArgs += @($ImageName, "pi")
 if ($PiArgs) { $dockerArgs += $PiArgs }
 
 & docker @dockerArgs

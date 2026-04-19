@@ -17,4 +17,9 @@ if [ -d /workspace ]; then
     done < <(find /workspace -type d)
 fi
 
+# ── Default to pi and pass through CLI args ──────────────────────────────────
+if [ "$#" -eq 0 ] || [ "${1#-}" != "$1" ]; then
+    set -- pi "$@"
+fi
+
 exec "$@"
