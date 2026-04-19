@@ -11,6 +11,9 @@ $EnvFile     = Join-Path $ScriptDir "pi-jail.env"
 $Workspace   = (Get-Location).Path
 $FolderName  = Split-Path -Leaf $Workspace
 $ContainerWd = "/workspace/$FolderName"
+$NameSuffix  = (($FolderName.ToLower() -replace '[^a-z0-9_.-]+', '-').Trim('-'))
+if ([string]::IsNullOrWhiteSpace($NameSuffix)) { $NameSuffix = "workspace" }
+$ContainerName = "pi-jail-$NameSuffix"
 $HomeDir     = $HOME
 
 # ── Build image if not present ───────────────────────────────────────────────
@@ -18,6 +21,17 @@ $imageExists = docker image inspect $ImageName 2>$null
 if (-not $imageExists) {
     Write-Host "[pi-jail] Building image '$ImageName'..."
     docker build -t $ImageName $ScriptDir
+}
+
+docker container inspect $ContainerName *> $null
+if ($LASTEXITCODE -eq 0) {
+    $containerRunning = (docker container inspect --format '{{.State.Running}}' $ContainerName).Trim()
+    if ($containerRunning -eq "true") {
+        throw "[pi-jail] Error: container '$ContainerName' is already running."
+    }
+
+    Write-Host "[pi-jail] Removing stopped container '$ContainerName'..."
+    docker rm $ContainerName *> $null
 }
 
 # ── Ensure ~/.pi exists on host ──────────────────────────────────────────────
@@ -35,7 +49,7 @@ $piDirHost     = (Resolve-Path -LiteralPath $piDir).Path
 # ── Base docker run args ─────────────────────────────────────────────────────
 $dockerArgs = @(
     "run", "--rm", "-it",
-    "--name", "pi-jail-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())",
+    "--name", $ContainerName,
     "--user", "1000:1000",
     "--add-host", "host.docker.internal=host-gateway",
     "-v", "${WorkspaceHost}:${ContainerWd}",
