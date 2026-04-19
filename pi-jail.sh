@@ -1,25 +1,36 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-CONTAINER_NAME="pi-jail"
-PI_PATH="/home/user/.pi"
-HOST_PI_DIR="$HOME/.pi"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+IMAGE_NAME="pi-jail"
+ENV_FILE="${SCRIPT_DIR}/pi-jail.env"
 
-# 1. Get the name of the current directory (e.g., "my-awesome-project")
-PROJECT_NAME=$(basename "$(pwd)")
+# ── Build image if not present ───────────────────────────────────────────────
+if ! docker image inspect "${IMAGE_NAME}" &>/dev/null; then
+    echo "[pi-jail] Building image '${IMAGE_NAME}'..."
+    docker build -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
+fi
 
-# 2. Define the target path inside the container
-TARGET_WORKSPACE="/workspace/$PROJECT_NAME"
+# ── Resolve workspace: mount current folder under /workspace/<dirname> ───────
+WORKSPACE="${PWD}"
+FOLDER_NAME="$(basename "${WORKSPACE}")"
+CONTAINER_WORKDIR="/workspace/${FOLDER_NAME}"
 
-# Ensure local config directory exists
-mkdir -p "$HOST_PI_DIR"
+# ── Ensure ~/.pi exists on host and is owned by current user ─────────────────
+PI_DIR="${HOME}/.pi"
+mkdir -p "${PI_DIR}"
 
-echo "Starting '$CONTAINER_NAME' for project '$PROJECT_NAME'..."
-
-docker run -it --rm \
-  --name "$CONTAINER_NAME" \
-  --user 1000:1000 \
-  -v "$HOST_PI_DIR:$PI_PATH" \
-  -v "$(pwd):$TARGET_WORKSPACE" \
-  --add-host host.docker.internal=host-gateway \
-  -w "$TARGET_WORKSPACE" \
-  pi-jail
+# ── Run ──────────────────────────────────────────────────────────────────────
+echo "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
+docker run \
+    --rm \
+    -it \
+    --name "pi-jail-$(date +%s)" \
+    --user 1000:1000 \
+    --add-host host.docker.internal=host-gateway \
+    -v "${WORKSPACE}:${CONTAINER_WORKDIR}" \
+    -v "${PI_DIR}:/home/user/.pi" \
+    -w "${CONTAINER_WORKDIR}" \
+    $([ -f "${ENV_FILE}" ] && echo "--env-file ${ENV_FILE}" || echo "") \
+    "${IMAGE_NAME}" \
+    "$@"

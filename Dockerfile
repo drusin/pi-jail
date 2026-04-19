@@ -1,30 +1,51 @@
-# --- Version Configuration ---
+# syntax=docker/dockerfile:1
+
+# ── Version args (override at build time if needed) ──────────────────────────
 ARG NODE_VERSION=24
-# -----------------------------
+ARG JAVA_VERSION=25
 
-FROM node:${NODE_VERSION}
+# ── Node.js LTS base ─────────────────────────────────────────────────────────
+FROM node:${NODE_VERSION}-bookworm-slim
 
-# Set environment variables
-ENV DEBIAN_FRONTEND=noninteractive
+# ── Re-declare after FROM (build args don't cross FROM boundaries) ────────────
+ARG JAVA_VERSION
 
-# Install necessary tools and the pi agent globally
-# We do this as root before switching users
+# ── System deps + Temurin JDK ────────────────────────────────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget \
+        curl \
+        git \
+        ca-certificates \
+        gnupg \
+        openssh-client \
+        bash \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
+        | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] \
+        https://packages.adoptium.net/artifactory/deb bookworm main" \
+        > /etc/apt/sources.list.d/adoptium.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends temurin-${JAVA_VERSION}-jdk \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── Create user 1000:1000 ────────────────────────────────────────────────────
+RUN usermod  -l user  node \
+    && groupmod -n user node \
+    && usermod  -d /home/user -m user \
+    && mkdir -p /home/user/.pi /workspace \
+    && chown -R user:user /home/user /workspace
+
+# ── pi coding agent (installed as root, available globally) ─────────────────
 RUN npm install -g @mariozechner/pi-coding-agent
 
-# Set up the "user" with UID/GID 1000:1000
-# We delete the default 'node' user first to ensure UID 1000 is available
-RUN userdel -r node || true && \
-    groupadd --gid 1000 user && \
-    useradd --uid 1000 --gid user --shell /bin/bash --create-home user
+# ── Entrypoint ───────────────────────────────────────────────────────────────
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-# Prepare the workspace and set ownership
-RUN mkdir -p /workspace && chown -R user:user /workspace
-
-# Set the working directory
+USER user
 WORKDIR /workspace
 
-# Switch to the non-root user
-USER user
-
-# Set the entrypoint
-ENTRYPOINT ["pi"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["pi"]
