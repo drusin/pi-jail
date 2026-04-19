@@ -19,6 +19,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
         openssh-client \
         bash \
+        dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
@@ -42,7 +43,7 @@ RUN npm install -g @mariozechner/pi-coding-agent
 
 # ── Entrypoint ───────────────────────────────────────────────────────────────
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
 
 USER user
 WORKDIR /workspace
