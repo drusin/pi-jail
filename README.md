@@ -1,6 +1,6 @@
 # pi-jail
 
-Run the [pi coding agent](https://[www.npmjs.com/package/@mariozechner/pi-coding-agent](https://pi.dev/) inside a disposable Docker container while keeping your current project mounted as the working directory.
+Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container while keeping your current project mounted as the working directory.
 
 `pi-jail` gives you a simple, repeatable way to use pi with:
 
