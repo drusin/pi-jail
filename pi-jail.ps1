@@ -27,18 +27,10 @@ if (-not (Test-Path $piDir -PathType Container)) {
     New-Item -ItemType Directory -Path $piDir | Out-Null
 }
 
-# ── Normalize path for Docker on Windows (convert C:\foo → /c/foo) ───────────
-function ConvertTo-DockerPath([string]$path) {
-    if ($path -match '^([A-Za-z]):(.+)$') {
-        $drive = $Matches[1].ToLower()
-        $rest  = $Matches[2] -replace '\\', '/'
-        return "/$drive$rest"
-    }
-    return $path -replace '\\', '/'
-}
-
-$WorkspaceDocker = ConvertTo-DockerPath $Workspace
-$piDirDocker     = ConvertTo-DockerPath $piDir
+# ── Docker Desktop on Windows expects native host paths for bind mounts and
+#    --env-file. Converting C:\foo to /c/foo breaks local file resolution. ────
+$WorkspaceHost = (Resolve-Path -LiteralPath $Workspace).Path
+$piDirHost     = (Resolve-Path -LiteralPath $piDir).Path
 
 # ── Base docker run args ─────────────────────────────────────────────────────
 $dockerArgs = @(
@@ -46,16 +38,16 @@ $dockerArgs = @(
     "--name", "pi-jail-$([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())",
     "--user", "1000:1000",
     "--add-host", "host.docker.internal=host-gateway",
-    "-v", "${WorkspaceDocker}:${ContainerWd}",
-    "-v", "${piDirDocker}:/home/user/.pi",
+    "-v", "${WorkspaceHost}:${ContainerWd}",
+    "-v", "${piDirHost}:/home/user/.pi",
     "-w", $ContainerWd
 )
 
 # ── Load pi-jail.env if present ──────────────────────────────────────────────
 if (Test-Path $EnvFile -PathType Leaf) {
     Write-Host "[pi-jail] Loading env from pi-jail.env"
-    $EnvFileDocker = ConvertTo-DockerPath $EnvFile
-    $dockerArgs += @("--env-file", $EnvFileDocker)
+    $EnvFileHost = (Resolve-Path -LiteralPath $EnvFile).Path
+    $dockerArgs += @("--env-file", $EnvFileHost)
 } else {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
 }
