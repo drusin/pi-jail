@@ -20,13 +20,17 @@ CONTAINER_WORKDIR="/workspace/${FOLDER_NAME}"
 PI_DIR="${HOME}/.pi"
 mkdir -p "${PI_DIR}"
 
+# ── Match container user to current host user (helps git ownership checks) ──
+LOCAL_UID="$(id -u)"
+LOCAL_GID="$(id -g)"
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 echo "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
 docker run \
     --rm \
     -it \
     --name "pi-jail-$(date +%s)" \
-    --user 1000:1000 \
+    --user "${LOCAL_UID}:${LOCAL_GID}" \
     --add-host host.docker.internal=host-gateway \
     -v "${WORKSPACE}:${CONTAINER_WORKDIR}" \
     -v "${PI_DIR}:/home/user/.pi" \
