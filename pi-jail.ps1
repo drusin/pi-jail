@@ -3,6 +3,17 @@ param(
     [string[]]$PiArgs
 )
 
+# Parse --no-workspace flag
+$NoWorkspace = $false
+$FilteredArgs = @()
+foreach ($arg in $PiArgs) {
+    if ($arg -eq "--no-workspace") {
+        $NoWorkspace = $true
+    } else {
+        $FilteredArgs += $arg
+    }
+}
+
 $ErrorActionPreference = "Stop"
 
 $ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -10,7 +21,11 @@ $ImageName   = "pi-jail"
 $EnvFile     = Join-Path $ScriptDir "pi-jail.env"
 $Workspace   = (Get-Location).Path
 $FolderName  = Split-Path -Leaf $Workspace
-$ContainerWd = "/workspace/$FolderName"
+if ($NoWorkspace) {
+    $ContainerWd = "/home/user"
+} else {
+    $ContainerWd = "/workspace/$FolderName"
+}
 $NameSuffix  = (($FolderName.ToLower() -replace '[^a-z0-9_.-]+', '-').Trim('-'))
 if ([string]::IsNullOrWhiteSpace($NameSuffix)) { $NameSuffix = "workspace" }
 $ContainerName = "pi-jail-$NameSuffix"
@@ -51,11 +66,16 @@ $dockerArgs = @(
     "run", "--rm", "-it",
     "--name", $ContainerName,
     "--user", "1000:1000",
-    "--add-host", "host.docker.internal=host-gateway",
-    "-v", "${WorkspaceHost}:${ContainerWd}",
-    "-v", "${piDirHost}:/home/user/.pi",
-    "-w", $ContainerWd
+    "--add-host", "host.docker.internal=host-gateway"
 )
+if (-not $NoWorkspace) {
+    $dockerArgs += "-v"
+    $dockerArgs += "${WorkspaceHost}:${ContainerWd}"
+}
+$dockerArgs += "-v"
+$dockerArgs += "${piDirHost}:/home/user/.pi"
+$dockerArgs += "-w"
+$dockerArgs += $ContainerWd
 
 # ── Load pi-jail.env if present ──────────────────────────────────────────────
 if (Test-Path $EnvFile -PathType Leaf) {
@@ -69,6 +89,6 @@ if (Test-Path $EnvFile -PathType Leaf) {
 # ── Run ──────────────────────────────────────────────────────────────────────
 Write-Host "[pi-jail] Starting pi in: $ContainerWd"
 $dockerArgs += @($ImageName, "pi")
-if ($PiArgs) { $dockerArgs += $PiArgs }
+if ($FilteredArgs) { $dockerArgs += $FilteredArgs }
 
 & docker @dockerArgs

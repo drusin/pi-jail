@@ -11,10 +11,31 @@ if ! docker image inspect "${IMAGE_NAME}" &>/dev/null; then
     docker build -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
 fi
 
+# ── Parse command line arguments ─────────────────────────────────────────────
+NO_WORKSPACE=false
+filtered_args=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-workspace)
+            NO_WORKSPACE=true
+            shift
+            ;;
+        *)
+            filtered_args+=("$1")
+            shift
+            ;;
+    esac
+done
+set -- "${filtered_args[@]}"
+
 # ── Resolve workspace: mount current folder under /workspace/<dirname> ───────
 WORKSPACE="${PWD}"
 FOLDER_NAME="$(basename "${WORKSPACE}")"
-CONTAINER_WORKDIR="/workspace/${FOLDER_NAME}"
+if [ "${NO_WORKSPACE}" = "true" ]; then
+    CONTAINER_WORKDIR="/home/user"
+else
+    CONTAINER_WORKDIR="/workspace/${FOLDER_NAME}"
+fi
 CONTAINER_SUFFIX="$(printf '%s' "${FOLDER_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g; s/^-+//; s/-+$//')"
 CONTAINER_SUFFIX="${CONTAINER_SUFFIX:-workspace}"
 CONTAINER_NAME="pi-jail-${CONTAINER_SUFFIX}"
@@ -46,7 +67,11 @@ docker_args=(
     --name "${CONTAINER_NAME}"
     --user "${LOCAL_UID}:${LOCAL_GID}"
     --add-host host.docker.internal=host-gateway
-    -v "${WORKSPACE}:${CONTAINER_WORKDIR}"
+)
+if [ "${NO_WORKSPACE}" = "false" ]; then
+    docker_args+=(-v "${WORKSPACE}:${CONTAINER_WORKDIR}")
+fi
+docker_args+=(
     -v "${PI_DIR}:/home/user/.pi"
     -w "${CONTAINER_WORKDIR}"
 )
