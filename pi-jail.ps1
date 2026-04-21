@@ -1,7 +1,4 @@
-param(
-    [Parameter(ValueFromRemainingArguments)]
-    [string[]]$PiArgs
-)
+$PiArgs = $args
 
 # Parse launcher flags
 $NoWorkspace = $false
