@@ -36,7 +36,7 @@ RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
 RUN usermod  -l user  node \
     && groupmod -n user node \
     && usermod  -d /home/user -m user \
-    && mkdir -p /home/user/.pi /workspace \
+    && mkdir -p /home/user/.pi /home/user/.m2 /workspace \
     && chown -R user:user /home/user /workspace
 
 # ── pi coding agent (installed as root, available globally) ─────────────────

@@ -89,6 +89,21 @@ get_env_value() {
     printf '%s' "$(printf '%s' "${value}" | sed -E "s/^[[:space:]]+//; s/[[:space:]]+$//; s/^\"(.*)\"$/\1/; s/^'(.*)'$/\1/")"
 }
 
+resolve_host_path() {
+    local path="$1"
+
+    case "${path}" in
+        "~")
+            path="${HOME}"
+            ;;
+        ~/*)
+            path="${HOME}/${path#~/}"
+            ;;
+    esac
+
+    printf '%s' "${path}"
+}
+
 is_port_free() {
     local port="$1"
 
@@ -194,6 +209,24 @@ if [ -f "${ENV_FILE}" ]; then
     random_port_value="$(get_env_value RANDOM_PORT)"
     if [[ "${random_port_value,,}" = "true" ]]; then
         RANDOM_PORT_REQUESTS=$((RANDOM_PORT_REQUESTS + 1))
+    fi
+
+    mvn_settings_xml="$(resolve_host_path "$(get_env_value MVN_SETTINGS_XML)")"
+    if [ -n "${mvn_settings_xml}" ]; then
+        if [ -f "${mvn_settings_xml}" ]; then
+            docker_args+=(-v "${mvn_settings_xml}:/home/user/.m2/settings.xml:ro")
+        else
+            echo "[pi-jail] Warning: MVN_SETTINGS_XML file not found: ${mvn_settings_xml}" >&2
+        fi
+    fi
+
+    node_npmrc="$(resolve_host_path "$(get_env_value NODE_NPMRC)")"
+    if [ -n "${node_npmrc}" ]; then
+        if [ -f "${node_npmrc}" ]; then
+            docker_args+=(-v "${node_npmrc}:/home/user/.npmrc:ro")
+        else
+            echo "[pi-jail] Warning: NODE_NPMRC file not found: ${node_npmrc}" >&2
+        fi
     fi
 fi
 

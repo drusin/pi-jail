@@ -63,6 +63,35 @@ function Get-EnvValue {
     return $value
 }
 
+function Resolve-HostFilePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$PathValue
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+        return $null
+    }
+
+    $candidate = $PathValue.Trim()
+    if ($candidate -eq "~") {
+        $candidate = $HOME
+    } elseif ($candidate.StartsWith("~/") -or $candidate.StartsWith("~\\")) {
+        $candidate = Join-Path $HOME $candidate.Substring(2)
+    }
+
+    if (-not [System.IO.Path]::IsPathRooted($candidate)) {
+        $candidate = Join-Path $WorkspaceHost $candidate
+    }
+
+    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
+        return $null
+    }
+
+    return (Resolve-Path -LiteralPath $candidate).Path
+}
+
 function Test-PortFree {
     param(
         [Parameter(Mandatory = $true)]
@@ -157,6 +186,26 @@ if (Test-Path $EnvFile -PathType Leaf) {
     $randomPortValue = Get-EnvValue -Path $EnvFile -Name "RANDOM_PORT"
     if ($randomPortValue -and $randomPortValue.ToLowerInvariant() -eq "true") {
         $RandomPortRequests++
+    }
+
+    $mvnSettingsRaw = Get-EnvValue -Path $EnvFile -Name "MVN_SETTINGS_XML"
+    if ($mvnSettingsRaw) {
+        $mvnSettingsHost = Resolve-HostFilePath -PathValue $mvnSettingsRaw
+        if ($mvnSettingsHost) {
+            $dockerArgs += @("-v", "${mvnSettingsHost}:/home/user/.m2/settings.xml:ro")
+        } else {
+            Write-Warning "[pi-jail] MVN_SETTINGS_XML file not found: $mvnSettingsRaw"
+        }
+    }
+
+    $nodeNpmrcRaw = Get-EnvValue -Path $EnvFile -Name "NODE_NPMRC"
+    if ($nodeNpmrcRaw) {
+        $nodeNpmrcHost = Resolve-HostFilePath -PathValue $nodeNpmrcRaw
+        if ($nodeNpmrcHost) {
+            $dockerArgs += @("-v", "${nodeNpmrcHost}:/home/user/.npmrc:ro")
+        } else {
+            Write-Warning "[pi-jail] NODE_NPMRC file not found: $nodeNpmrcRaw"
+        }
     }
 } else {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
