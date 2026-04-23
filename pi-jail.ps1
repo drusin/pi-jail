@@ -98,9 +98,21 @@ function Test-PortFree {
         [int]$Port
     )
 
+    if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
+        $tcpConnections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+        if ($tcpConnections) {
+            return $false
+        }
+    } elseif (Get-Command netstat.exe -ErrorAction SilentlyContinue) {
+        if (netstat.exe -ano -p tcp | Select-String -Pattern (":$Port\s")) {
+            return $false
+        }
+    }
+
     $listener = $null
     try {
         $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
+        $listener.ExclusiveAddressUse = $true
         $listener.Start()
         return $true
     } catch {
