@@ -84,13 +84,8 @@ function Test-PortFree {
 }
 
 function Find-FreePort {
-    param(
-        [Parameter(Mandatory = $true)]
-        [System.Collections.Generic.HashSet[string]]$ExcludedPorts
-    )
-
     for ($port = 9000; $port -le 65535; $port++) {
-        if ($ExcludedPorts.Contains([string]$port)) {
+        if ($seenPorts.Contains([string]$port)) {
             continue
         }
 
@@ -205,7 +200,7 @@ if ($PortSpecs.Count -gt 0) {
 
 if ($RandomPortRequests -gt 0) {
     for ($i = 0; $i -lt $RandomPortRequests; $i++) {
-        $portNumber = Find-FreePort -ExcludedPorts $seenPorts
+        $portNumber = Find-FreePort
         if ($null -eq $portNumber) {
             $randomPortFailures++
             continue
