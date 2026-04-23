@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         openssh-client \
         bash \
         dos2unix \
+        maven \
     && rm -rf /var/lib/apt/lists/*
 
 RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
