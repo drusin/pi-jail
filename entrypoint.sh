@@ -17,6 +17,31 @@ if [ -d /workspace ]; then
     done < <(find /workspace -maxdepth 1 -type d)
 fi
 
+# ── Optional host-command shims ──────────────────────────────────────────────
+if [ -n "${RUN_ON_HOST:-}" ] && [ -n "${PI_HOST_EXEC_PORT:-}" ] && [ -n "${PI_HOST_EXEC_TOKEN:-}" ]; then
+    shim_dir="${HOME:-/home/user}/.local/share/pi-host-shims"
+    mkdir -p "${shim_dir}"
+
+    IFS=',' read -r -a host_commands <<< "${RUN_ON_HOST}"
+    for command in "${host_commands[@]}"; do
+        command="$(printf '%s' "${command}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+        [ -z "${command}" ] && continue
+
+        if [[ ! "${command}" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            echo "[pi-jail] Warning: ignoring invalid RUN_ON_HOST command '${command}'" >&2
+            continue
+        fi
+
+        cat > "${shim_dir}/${command}" <<EOF
+#!/usr/bin/env bash
+exec /usr/local/lib/pi-host-forward.sh "${command}" "\$@"
+EOF
+        chmod +x "${shim_dir}/${command}"
+    done
+
+    export PATH="${shim_dir}:${PATH}"
+fi
+
 # ── Default to pi and pass through CLI args ──────────────────────────────────
 if [ "$#" -eq 0 ] || [ "${1#-}" != "$1" ]; then
     set -- pi "$@"

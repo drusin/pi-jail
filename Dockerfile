@@ -42,9 +42,11 @@ RUN usermod  -l user  node \
 # ── pi coding agent (installed as root, available globally) ─────────────────
 RUN npm install -g @mariozechner/pi-coding-agent
 
-# ── Entrypoint ───────────────────────────────────────────────────────────────
+# ── Entrypoint + host-forwarding helper ─────────────────────────────────────
 COPY entrypoint.sh /entrypoint.sh
-RUN dos2unix /entrypoint.sh && chmod +x /entrypoint.sh
+COPY pi-host-forward.sh /usr/local/lib/pi-host-forward.sh
+RUN dos2unix /entrypoint.sh /usr/local/lib/pi-host-forward.sh \
+    && chmod +x /entrypoint.sh /usr/local/lib/pi-host-forward.sh
 
 USER user
 WORKDIR /workspace

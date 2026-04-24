@@ -24,6 +24,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
   - Ports from `PORTS`, `RANDOM_PORT`, and `-p` are combined
   - Ports are only bound if they are free on the host; busy ports are skipped with a warning
   - Inside the container, `EXPOSED_PORTS` contains the successfully bound ports as a comma-separated list
+  - On Windows, set `RUN_ON_HOST=npm` (or similar) to forward selected top-level commands from the container to the host; the command runs on the host in the folder where `pi-jail.ps1` was started
 
 ## Daily use
 - navigate to a project folder on your host machine
@@ -39,3 +40,12 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 ## Set up dev enironments:
 - Node
 - Java
+
+## Windows host-command forwarding MVP
+- set `RUN_ON_HOST` in `pi-jail.env`, for example `RUN_ON_HOST=npm`
+- start `pi-jail.ps1` from the project folder you want host commands to run in
+- inside the container, calls to the listed commands are forwarded to the host
+- current limitations:
+  - Windows launcher only
+  - no path translation
+  - forwarded commands always run in the host folder where `pi-jail.ps1` was started
