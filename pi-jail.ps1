@@ -2,11 +2,21 @@ $PiArgs = $args
 
 # Parse launcher flags
 $NoWorkspace = $false
+$AdHocRunOnHostValues = @()
 $FilteredArgs = @()
 for ($i = 0; $i -lt $PiArgs.Count; $i++) {
     $arg = $PiArgs[$i]
     if ($arg -eq "--no-workspace") {
         $NoWorkspace = $true
+    } elseif ($arg -like "--run-on-host=*") {
+        $AdHocRunOnHostValues += $arg.Substring("--run-on-host=".Length)
+    } elseif ($arg -eq "--run-on-host") {
+        if ($i + 1 -ge $PiArgs.Count) {
+            throw "[pi-jail] Error: --run-on-host requires a value."
+        }
+
+        $i += 1
+        $AdHocRunOnHostValues += $PiArgs[$i]
     } else {
         $FilteredArgs += $arg
     }
@@ -52,6 +62,30 @@ function Get-EnvValue {
     }
 
     return $value
+}
+
+function Add-RunOnHostCommands {
+    param(
+        [AllowNull()]
+        [string]$Value,
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.List[string]]$Commands
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return
+    }
+
+    foreach ($entry in $Value.Split(',')) {
+        $command = $entry.Trim()
+        if ([string]::IsNullOrWhiteSpace($command)) {
+            continue
+        }
+
+        if (-not $Commands.Contains($command)) {
+            $Commands.Add($command)
+        }
+    }
 }
 
 function New-HostExecToken {
@@ -508,16 +542,15 @@ if (Test-Path $EnvFile -PathType Leaf) {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
 }
 
-$runOnHostCommands = @()
-if ($runOnHostValue) {
-    $runOnHostCommands = @(
-        $runOnHostValue.Split(',') |
-            ForEach-Object { $_.Trim() } |
-            Where-Object { $_ }
-    )
+$runOnHostCommandsList = [System.Collections.Generic.List[string]]::new()
+Add-RunOnHostCommands -Value $runOnHostValue -Commands $runOnHostCommandsList
+foreach ($value in $AdHocRunOnHostValues) {
+    Add-RunOnHostCommands -Value $value -Commands $runOnHostCommandsList
 }
+$runOnHostCommands = @($runOnHostCommandsList)
 
 if ($runOnHostCommands.Count -gt 0) {
+    $dockerArgs += @("-e", "RUN_ON_HOST=$($runOnHostCommands -join ',')")
     $hostExecPort = Get-FreeTcpPort
     $hostExecToken = New-HostExecToken
     $hostExecScriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("pi-jail-host-exec-{0}.ps1" -f [guid]::NewGuid().ToString('N'))

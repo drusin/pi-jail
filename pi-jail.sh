@@ -316,12 +316,25 @@ fi
 
 # ── Parse command line arguments ─────────────────────────────────────────────
 NO_WORKSPACE=false
+ad_hoc_run_on_host_values=()
 filtered_args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
         --no-workspace)
             NO_WORKSPACE=true
             shift
+            ;;
+        --run-on-host=*)
+            ad_hoc_run_on_host_values+=("${1#--run-on-host=}")
+            shift
+            ;;
+        --run-on-host)
+            if [[ $# -lt 2 ]]; then
+                echo "[pi-jail] Error: --run-on-host requires a value." >&2
+                exit 1
+            fi
+            ad_hoc_run_on_host_values+=("$2")
+            shift 2
             ;;
         *)
             filtered_args+=("$1")
@@ -389,17 +402,42 @@ else
 fi
 
 run_on_host_commands=()
-if [ -n "${run_on_host_value}" ]; then
-    IFS=',' read -r -a raw_run_on_host_commands <<< "${run_on_host_value}"
+add_run_on_host_commands() {
+    local raw_value="$1"
+    local command
+    local existing_command
+    local already_present
+
+    [ -z "${raw_value}" ] && return 0
+
+    IFS=',' read -r -a raw_run_on_host_commands <<< "${raw_value}"
     for command in "${raw_run_on_host_commands[@]}"; do
         command="$(printf '%s' "${command}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
-        if [ -n "${command}" ]; then
+        [ -z "${command}" ] && continue
+
+        already_present=false
+        for existing_command in "${run_on_host_commands[@]}"; do
+            if [ "${existing_command}" = "${command}" ]; then
+                already_present=true
+                break
+            fi
+        done
+
+        if [ "${already_present}" = "false" ]; then
             run_on_host_commands+=("${command}")
         fi
     done
-fi
+}
+
+add_run_on_host_commands "${run_on_host_value}"
+for ad_hoc_run_on_host_value in "${ad_hoc_run_on_host_values[@]}"; do
+    add_run_on_host_commands "${ad_hoc_run_on_host_value}"
+done
 
 if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
+    run_on_host_joined="$(IFS=,; printf '%s' "${run_on_host_commands[*]}")"
+    docker_args+=(-e "RUN_ON_HOST=${run_on_host_joined}")
+
     if ! command -v perl >/dev/null 2>&1; then
         echo "[pi-jail] Error: RUN_ON_HOST requires perl on the Linux host." >&2
         exit 1

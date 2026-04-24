@@ -21,7 +21,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 ## Daily use
 - navigate to a project folder on your host machine
 - run `pi-jail` from there
-- any arguments you pass to `pi-jail` are forwarded to `pi` inside the container, except launcher flags like `--no-workspace`
+- any arguments you pass to `pi-jail` are forwarded to `pi` inside the container, except launcher flags like `--no-workspace` and `--run-on-host=<command>`
   - example: `pi-jail -r` runs `pi -r` in the container, which starts pi with an interactive session browser
 - use pi (assuming you have an llm provider set up)
 
@@ -31,6 +31,8 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 
 ## Host-command forwarding MVP
 - set `RUN_ON_HOST` in `pi-jail.env`, for example `RUN_ON_HOST=git`
+- you can also add ad-hoc forwarded commands per run with `--run-on-host=<command>`
+- env and CLI values are merged, so `RUN_ON_HOST=npm,mvn` plus `--run-on-host=curl` forwards `npm`, `mvn`, and `curl`
 - start `pi-jail.ps1` or `pi-jail.sh` from the project folder you want host commands to run in
 - inside the container, calls to the listed commands are forwarded to the host
 - current limitations:
