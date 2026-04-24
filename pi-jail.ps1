@@ -1,3 +1,5 @@
+#Requires -Version 7.0
+
 $PiArgs = $args
 
 # Parse launcher flags
@@ -23,6 +25,8 @@ for ($i = 0; $i -lt $PiArgs.Count; $i++) {
 }
 
 $ErrorActionPreference = "Stop"
+
+$PowerShellExecutable = Join-Path $PSHOME "pwsh.exe"
 
 $ScriptDir   = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ImageName   = "pi-jail"
@@ -69,7 +73,8 @@ function Add-RunOnHostCommands {
         [AllowNull()]
         [string]$Value,
         [Parameter(Mandatory = $true)]
-        [System.Collections.Generic.List[string]]$Commands
+        [AllowEmptyCollection()]
+        [System.Collections.IList]$Commands
     )
 
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -304,7 +309,7 @@ function Invoke-HostCommand {
         $startInfo.FileName = $cmdExe
         $startInfo.Arguments = "/d /s /c `"$commandLine`""
     } elseif ($extension -eq '.ps1') {
-        $startInfo.FileName = 'powershell.exe'
+        $startInfo.FileName = $PowerShellExecutable
         $quotedCommand = Quote-WindowsArgument -Value $resolvedCommand
         $startInfo.Arguments = if ([string]::IsNullOrEmpty($argumentString)) {
             "-NoLogo -NoProfile -ExecutionPolicy Bypass -File $quotedCommand"
@@ -556,7 +561,7 @@ if ($runOnHostCommands.Count -gt 0) {
     $hostExecScriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("pi-jail-host-exec-{0}.ps1" -f [guid]::NewGuid().ToString('N'))
     [System.IO.File]::WriteAllText($hostExecScriptPath, (Get-EmbeddedHostExecServerScript), [System.Text.UTF8Encoding]::new($false))
 
-    $hostExecProcess = Start-Process -FilePath "powershell.exe" `
+    $hostExecProcess = Start-Process -FilePath $PowerShellExecutable `
         -ArgumentList @(
             "-NoLogo",
             "-NoProfile",

@@ -16,6 +16,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - *optional* create `pi-jail.env` next to the script based on the example to load API keys and Git identity
   - If you want to use pi's internal login command, you don't need to put API keys in the env file
   - Put `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the env file if you want pi to be able to make commits (pushing is not supported by design)
+  - On Windows, run `pi-jail.ps1` from PowerShell 7 (`pwsh`); Windows PowerShell 5 is not supported
   - On Windows or Linux, set `RUN_ON_HOST=<command>` to forward selected top-level commands from the container to the host; the command runs on the host in the folder where the launcher was started
 
 ## Daily use
@@ -39,3 +40,4 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
   - no path translation
   - forwarded commands always run in the host folder where the launcher was started
   - on Linux, the launcher currently requires `perl` on the host when `RUN_ON_HOST` is enabled
+  - on Windows, the launcher requires PowerShell 7 (`pwsh`)
