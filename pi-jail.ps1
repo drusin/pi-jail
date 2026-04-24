@@ -519,7 +519,8 @@ $dockerArgs = @(
     "run", "--rm", "-it",
     "--name", $ContainerName,
     "--user", "1000:1000",
-    "--add-host", "host.docker.internal=host-gateway"
+    "--add-host", "host.docker.internal=host-gateway",
+    "-e", "HOST_SYSTEM=windows"
 )
 if (-not $NoWorkspace) {
     $dockerArgs += "-v"

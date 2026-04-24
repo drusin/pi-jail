@@ -383,6 +383,7 @@ docker_args=(
     --name "${CONTAINER_NAME}"
     --user "${LOCAL_UID}:${LOCAL_GID}"
     --add-host host.docker.internal=host-gateway
+    -e "HOST_SYSTEM=linux"
 )
 if [ "${NO_WORKSPACE}" = "false" ]; then
     docker_args+=(-v "${WORKSPACE}:${CONTAINER_WORKDIR}")
