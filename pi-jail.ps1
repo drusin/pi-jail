@@ -554,9 +554,12 @@ foreach ($value in $AdHocRunOnHostValues) {
     Add-RunOnHostCommands -Value $value -Commands $runOnHostCommandsList
 }
 $runOnHostCommands = @($runOnHostCommandsList)
+$appendSystemPrompt = $null
 
 if ($runOnHostCommands.Count -gt 0) {
-    $dockerArgs += @("-e", "RUN_ON_HOST=$($runOnHostCommands -join ',')")
+    $runOnHostJoined = $runOnHostCommands -join ','
+    $dockerArgs += @("-e", "RUN_ON_HOST=$runOnHostJoined")
+    $appendSystemPrompt = "Commands listed in RUN_ON_HOST ($runOnHostJoined) are executed directly on the host system (windows), not inside the container. When using those commands, use host-native syntax, paths, quoting, separators, and shell conventions. For all other commands, assume the normal container Linux/bash environment."
     $hostExecPort = Get-FreeTcpPort
     $hostExecToken = New-HostExecToken
     $hostExecScriptPath = Join-Path ([System.IO.Path]::GetTempPath()) ("pi-jail-host-exec-{0}.ps1" -f [guid]::NewGuid().ToString('N'))
@@ -587,6 +590,7 @@ if ($runOnHostCommands.Count -gt 0) {
 try {
     Write-Host "[pi-jail] Starting pi in: $ContainerWd"
     $dockerArgs += @($ImageName, "pi")
+    if ($appendSystemPrompt) { $dockerArgs += @("--append-system-prompt", $appendSystemPrompt) }
     if ($FilteredArgs) { $dockerArgs += $FilteredArgs }
 
     & docker @dockerArgs

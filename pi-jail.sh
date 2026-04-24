@@ -403,6 +403,7 @@ else
 fi
 
 run_on_host_commands=()
+append_system_prompt=""
 add_run_on_host_commands() {
     local raw_value="$1"
     local command
@@ -438,6 +439,7 @@ done
 if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
     run_on_host_joined="$(IFS=,; printf '%s' "${run_on_host_commands[*]}")"
     docker_args+=(-e "RUN_ON_HOST=${run_on_host_joined}")
+    append_system_prompt="Commands listed in RUN_ON_HOST (${run_on_host_joined}) are executed directly on the Linux host, not inside the container. When using those commands, assume the host environment, installed tools, credentials, filesystem, and environment variables may differ from the container. For all other commands, assume the normal container environment."
 
     if ! command -v perl >/dev/null 2>&1; then
         echo "[pi-jail] Error: RUN_ON_HOST requires perl on the Linux host." >&2
@@ -464,4 +466,9 @@ if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
 fi
 
 echo "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
-docker "${docker_args[@]}" "${IMAGE_NAME}" pi "$@"
+pi_args=()
+if [ -n "${append_system_prompt}" ]; then
+    pi_args+=(--append-system-prompt "${append_system_prompt}")
+fi
+pi_args+=("$@")
+docker "${docker_args[@]}" "${IMAGE_NAME}" pi "${pi_args[@]}"
