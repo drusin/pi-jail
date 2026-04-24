@@ -29,6 +29,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 ## Set up dev enironments:
 - Node
 - Java
+- Python 3
 
 ## Host-command forwarding MVP
 - set `RUN_ON_HOST` in `pi-jail.env`, for example `RUN_ON_HOST=git`
