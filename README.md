@@ -8,7 +8,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - your current folder mounted into `/workspace/<project-name>`
 - persistent pi config in `~/.pi`
 - optional API keys and Git identity loaded from `pi-jail.env`
-- Possibility to call explicilty selected binaries from the host, see [below](#windows-host-command-forwarding-mvp)
+- Possibility to call explicilty selected binaries from the host, see [below](#host-command-forwarding-mvp)
 
 ## Setup
 - build the image with `docker build -t pi-jail .`
@@ -16,7 +16,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - *optional* create `pi-jail.env` next to the script based on the example to load API keys and Git identity
   - If you want to use pi's internal login command, you don't need to put API keys in the env file
   - Put `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the env file if you want pi to be able to make commits (pushing is not supported by design)
-  - On Windows, set `RUN_ON_HOST=<command>` to forward selected top-level commands from the container to the host; the command runs on the host in the folder where `pi-jail.ps1` was started
+  - On Windows or Linux, set `RUN_ON_HOST=<command>` to forward selected top-level commands from the container to the host; the command runs on the host in the folder where the launcher was started
 
 ## Daily use
 - navigate to a project folder on your host machine
@@ -29,11 +29,11 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - Node
 - Java
 
-## Windows host-command forwarding MVP
+## Host-command forwarding MVP
 - set `RUN_ON_HOST` in `pi-jail.env`, for example `RUN_ON_HOST=git`
-- start `pi-jail.ps1` from the project folder you want host commands to run in
+- start `pi-jail.ps1` or `pi-jail.sh` from the project folder you want host commands to run in
 - inside the container, calls to the listed commands are forwarded to the host
 - current limitations:
-  - Windows launcher only
   - no path translation
-  - forwarded commands always run in the host folder where `pi-jail.ps1` was started
+  - forwarded commands always run in the host folder where the launcher was started
+  - on Linux, the launcher currently requires `perl` on the host when `RUN_ON_HOST` is enabled
