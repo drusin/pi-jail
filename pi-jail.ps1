@@ -2,20 +2,11 @@ $PiArgs = $args
 
 # Parse launcher flags
 $NoWorkspace = $false
-$PortSpecs = @()
-$RandomPortRequests = 0
 $FilteredArgs = @()
 for ($i = 0; $i -lt $PiArgs.Count; $i++) {
     $arg = $PiArgs[$i]
     if ($arg -eq "--no-workspace") {
         $NoWorkspace = $true
-    } elseif ($arg -eq "-p") {
-        if ($i + 1 -lt $PiArgs.Count -and -not $PiArgs[$i + 1].StartsWith("-")) {
-            $i++
-            $PortSpecs += $PiArgs[$i]
-        } else {
-            $RandomPortRequests++
-        }
     } else {
         $FilteredArgs += $arg
     }
@@ -61,81 +52,6 @@ function Get-EnvValue {
     }
 
     return $value
-}
-
-function Resolve-HostFilePath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyString()]
-        [string]$PathValue
-    )
-
-    if ([string]::IsNullOrWhiteSpace($PathValue)) {
-        return $null
-    }
-
-    $candidate = $PathValue.Trim()
-    if ($candidate -eq "~") {
-        $candidate = $HOME
-    } elseif ($candidate.StartsWith("~/") -or $candidate.StartsWith("~\\")) {
-        $candidate = Join-Path $HOME $candidate.Substring(2)
-    }
-
-    if (-not [System.IO.Path]::IsPathRooted($candidate)) {
-        $candidate = Join-Path $WorkspaceHost $candidate
-    }
-
-    if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
-        return $null
-    }
-
-    return (Resolve-Path -LiteralPath $candidate).Path
-}
-
-function Test-PortFree {
-    param(
-        [Parameter(Mandatory = $true)]
-        [int]$Port
-    )
-
-    if (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue) {
-        $tcpConnections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-        if ($tcpConnections) {
-            return $false
-        }
-    } elseif (Get-Command netstat.exe -ErrorAction SilentlyContinue) {
-        if (netstat.exe -ano -p tcp | Select-String -Pattern (":$Port\s")) {
-            return $false
-        }
-    }
-
-    $listener = $null
-    try {
-        $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Any, $Port)
-        $listener.ExclusiveAddressUse = $true
-        $listener.Start()
-        return $true
-    } catch {
-        return $false
-    } finally {
-        if ($listener) {
-            $listener.Stop()
-        }
-    }
-}
-
-function Find-FreePort {
-    for ($port = 9000; $port -le 65535; $port++) {
-        if ($seenPorts.Contains([string]$port)) {
-            continue
-        }
-
-        if (Test-PortFree -Port $port) {
-            return $port
-        }
-    }
-
-    return $null
 }
 
 function New-HostExecToken {
@@ -588,36 +504,6 @@ if (Test-Path $EnvFile -PathType Leaf) {
     $dockerArgs += @("--env-file", $EnvFileHost)
 
     $runOnHostValue = Get-EnvValue -Path $EnvFile -Name "RUN_ON_HOST"
-
-    $portsValue = Get-EnvValue -Path $EnvFile -Name "PORTS"
-    if ($portsValue) {
-        $PortSpecs += $portsValue
-    }
-
-    $randomPortValue = Get-EnvValue -Path $EnvFile -Name "RANDOM_PORT"
-    if ($randomPortValue -and $randomPortValue.ToLowerInvariant() -eq "true") {
-        $RandomPortRequests++
-    }
-
-    $mvnSettingsRaw = Get-EnvValue -Path $EnvFile -Name "MVN_SETTINGS_XML"
-    if ($mvnSettingsRaw) {
-        $mvnSettingsHost = Resolve-HostFilePath -PathValue $mvnSettingsRaw
-        if ($mvnSettingsHost) {
-            $dockerArgs += @("-v", "${mvnSettingsHost}:/home/user/.m2/settings.xml:ro")
-        } else {
-            Write-Warning "[pi-jail] MVN_SETTINGS_XML file not found: $mvnSettingsRaw"
-        }
-    }
-
-    $nodeNpmrcRaw = Get-EnvValue -Path $EnvFile -Name "NODE_NPMRC"
-    if ($nodeNpmrcRaw) {
-        $nodeNpmrcHost = Resolve-HostFilePath -PathValue $nodeNpmrcRaw
-        if ($nodeNpmrcHost) {
-            $dockerArgs += @("-v", "${nodeNpmrcHost}:/home/user/.npmrc:ro")
-        } else {
-            Write-Warning "[pi-jail] NODE_NPMRC file not found: $nodeNpmrcRaw"
-        }
-    }
 } else {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
 }
@@ -657,65 +543,6 @@ if ($runOnHostCommands.Count -gt 0) {
         "-e", "PI_HOST_EXEC_TOKEN=$hostExecToken"
     )
 }
-
-$seenPorts = [System.Collections.Generic.HashSet[string]]::new()
-$busyPorts = @()
-$boundPorts = @()
-$randomPortFailures = 0
-
-if ($PortSpecs.Count -gt 0) {
-    foreach ($portSpec in $PortSpecs) {
-        foreach ($port in ($portSpec -split ',')) {
-            $port = $port.Trim()
-            if (-not $port) { continue }
-
-            if ($port -notmatch '^\d+$') {
-                Write-Warning "[pi-jail] Ignoring invalid port '$port'"
-                continue
-            }
-
-            $portNumber = [int]$port
-            if ($portNumber -lt 1 -or $portNumber -gt 65535) {
-                Write-Warning "[pi-jail] Ignoring invalid port '$port'"
-                continue
-            }
-
-            if (-not $seenPorts.Add([string]$portNumber)) {
-                continue
-            }
-
-            if (Test-PortFree -Port $portNumber) {
-                $dockerArgs += @("-p", "$portNumber`:$portNumber")
-                $boundPorts += $portNumber
-            } else {
-                $busyPorts += $portNumber
-            }
-        }
-    }
-}
-
-if ($RandomPortRequests -gt 0) {
-    for ($i = 0; $i -lt $RandomPortRequests; $i++) {
-        $portNumber = Find-FreePort
-        if ($null -eq $portNumber) {
-            $randomPortFailures++
-            continue
-        }
-
-        $null = $seenPorts.Add([string]$portNumber)
-        $dockerArgs += @("-p", "$portNumber`:$portNumber")
-        $boundPorts += $portNumber
-    }
-}
-
-if ($busyPorts.Count -gt 0) {
-    Write-Warning ("[pi-jail] Not binding ports already in use: " + ($busyPorts -join ', '))
-}
-if ($randomPortFailures -gt 0) {
-    Write-Warning "[pi-jail] Could not find $randomPortFailures free random port(s) starting at 9000"
-}
-
-$dockerArgs += @("-e", "EXPOSED_PORTS=$($boundPorts -join ',')")
 
 # ── Run ──────────────────────────────────────────────────────────────────────
 try {
