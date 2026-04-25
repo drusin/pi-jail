@@ -7,11 +7,16 @@ ENV_FILE="${SCRIPT_DIR}/pi-jail.env"
 
 host_exec_pid=""
 host_exec_script_path=""
+host_exec_socket=""
 
 cleanup() {
     if [ -n "${host_exec_pid}" ] && kill -0 "${host_exec_pid}" 2>/dev/null; then
         kill "${host_exec_pid}" 2>/dev/null || true
         wait "${host_exec_pid}" 2>/dev/null || true
+    fi
+
+    if [ -n "${host_exec_socket}" ] && [ -S "${host_exec_socket}" ]; then
+        rm -f "${host_exec_socket}"
     fi
 
     if [ -n "${host_exec_script_path}" ] && [ -f "${host_exec_script_path}" ]; then
@@ -42,21 +47,8 @@ new_host_exec_token() {
     head -c 32 /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_'
 }
 
-get_free_tcp_port() {
-    perl -MIO::Socket::INET -e '
-        my $socket = IO::Socket::INET->new(
-            LocalAddr => "127.0.0.1",
-            LocalPort => 0,
-            Proto     => "tcp",
-            Listen    => 1,
-            ReuseAddr => 1,
-        ) or die $!;
-        print $socket->sockport;
-    '
-}
-
-wait_host_exec_server() {
-    local port="$1"
+wait_host_exec_server_socket() {
+    local socket_path="$1"
     local pid="$2"
     local timeout_seconds="${3:-5}"
     local deadline=$((SECONDS + timeout_seconds))
@@ -67,14 +59,14 @@ wait_host_exec_server() {
             return 1
         fi
 
-        if (echo >"/dev/tcp/127.0.0.1/${port}") >/dev/null 2>&1; then
+        if [ -S "${socket_path}" ]; then
             return 0
         fi
 
         sleep 0.1
     done
 
-    echo "[pi-jail] Timed out waiting for host exec server on port ${port}." >&2
+    echo "[pi-jail] Timed out waiting for host exec server socket ${socket_path}." >&2
     return 1
 }
 
@@ -88,19 +80,22 @@ use warnings;
 use Getopt::Long qw(GetOptions);
 use IO::Handle;
 use IO::Select;
-use IO::Socket::INET;
+use IO::Socket::UNIX;
 use MIME::Base64 qw(decode_base64 encode_base64);
 
-my ($port, $token, $workspace);
+my ($socket_path, $token, $workspace);
 GetOptions(
-    'port=i'     => \$port,
+    'socket=s'   => \$socket_path,
     'token=s'    => \$token,
     'workspace=s'=> \$workspace,
 ) or die "Invalid arguments\n";
 
-die "Missing --port\n" unless defined $port;
+die "Missing --socket\n" unless defined $socket_path;
 die "Missing --token\n" unless defined $token;
 die "Missing --workspace\n" unless defined $workspace;
+
+# Clean up stale socket
+unlink $socket_path if -S $socket_path;
 
 sub encode_value {
     my ($value) = @_;
@@ -276,13 +271,12 @@ sub invoke_host_command {
     send_frame($writer, 'EXIT', "$exit_code");
 }
 
-my $server = IO::Socket::INET->new(
-    LocalAddr => '0.0.0.0',
-    LocalPort => $port,
-    Proto     => 'tcp',
-    Listen    => 5,
-    ReuseAddr => 1,
+my $server = IO::Socket::UNIX->new(
+    Local  => $socket_path,
+    Listen => 5,
 ) or die "$!\n";
+
+chmod 0600, $socket_path;
 
 while (my $client = $server->accept()) {
     $client->autoflush(1);
@@ -446,21 +440,22 @@ if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
         exit 1
     fi
 
-    host_exec_port="$(get_free_tcp_port)"
+    host_exec_socket="${PI_DIR}/pi-host-exec.sock"
     host_exec_token="$(new_host_exec_token)"
     host_exec_script_path="$(mktemp "${TMPDIR:-/tmp}/pi-jail-host-exec-XXXXXX.pl")"
 
+    rm -f "${host_exec_socket}"
+
     write_host_exec_server "${host_exec_script_path}"
     perl "${host_exec_script_path}" \
-        --port "${host_exec_port}" \
+        --socket "${host_exec_socket}" \
         --token "${host_exec_token}" \
         --workspace "${WORKSPACE}" &
     host_exec_pid="$!"
 
-    wait_host_exec_server "${host_exec_port}" "${host_exec_pid}"
+    wait_host_exec_server_socket "${host_exec_socket}" "${host_exec_pid}"
     docker_args+=(
-        -e "PI_HOST_EXEC_HOST=host.docker.internal"
-        -e "PI_HOST_EXEC_PORT=${host_exec_port}"
+        -e "PI_HOST_EXEC_SOCKET=/home/user/.pi/pi-host-exec.sock"
         -e "PI_HOST_EXEC_TOKEN=${host_exec_token}"
     )
 fi
