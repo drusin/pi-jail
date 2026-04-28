@@ -440,7 +440,7 @@ if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
         exit 1
     fi
 
-    host_exec_socket="${PI_DIR}/pi-host-exec.sock"
+    host_exec_socket="${PI_DIR}/pi-host-exec-${CONTAINER_SUFFIX}.sock"
     host_exec_token="$(new_host_exec_token)"
     host_exec_script_path="$(mktemp "${TMPDIR:-/tmp}/pi-jail-host-exec-XXXXXX.pl")"
 
@@ -455,7 +455,7 @@ if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
 
     wait_host_exec_server_socket "${host_exec_socket}" "${host_exec_pid}"
     docker_args+=(
-        -e "PI_HOST_EXEC_SOCKET=/home/user/.pi/pi-host-exec.sock"
+        -e "PI_HOST_EXEC_SOCKET=/home/user/.pi/pi-host-exec-${CONTAINER_SUFFIX}.sock"
         -e "PI_HOST_EXEC_TOKEN=${host_exec_token}"
     )
 fi
