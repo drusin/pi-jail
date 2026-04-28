@@ -43,6 +43,58 @@ get_env_value() {
     printf '%s' "${value}"
 }
 
+valid_mask_file_path() {
+    local path="$1"
+    local segment
+
+    [ -n "${path}" ] || return 1
+    [[ "${path}" != /* ]] || return 1
+    [[ "${path}" != *:* ]] || return 1
+
+    IFS='/' read -r -a segments <<< "${path}"
+    for segment in "${segments[@]}"; do
+        [ -n "${segment}" ] || return 1
+        [ "${segment}" != "." ] || return 1
+        [ "${segment}" != ".." ] || return 1
+    done
+
+    return 0
+}
+
+mask_files=()
+add_mask_files() {
+    local raw_value="$1"
+    local mask_file
+    local existing_mask_file
+    local already_present
+
+    [ -z "${raw_value}" ] && return 0
+
+    IFS=',' read -r -a raw_mask_files <<< "${raw_value}"
+    for mask_file in "${raw_mask_files[@]}"; do
+        mask_file="$(printf '%s' "${mask_file}" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+        mask_file="${mask_file//\\//}"
+        [ -z "${mask_file}" ] && continue
+
+        if ! valid_mask_file_path "${mask_file}"; then
+            echo "[pi-jail] Warning: ignoring invalid MASK_FILES entry '${mask_file}'" >&2
+            continue
+        fi
+
+        already_present=false
+        for existing_mask_file in "${mask_files[@]}"; do
+            if [ "${existing_mask_file}" = "${mask_file}" ]; then
+                already_present=true
+                break
+            fi
+        done
+
+        if [ "${already_present}" = "false" ]; then
+            mask_files+=("${mask_file}")
+        fi
+    done
+}
+
 new_host_exec_token() {
     head -c 32 /dev/urandom | base64 | tr -d '\n=' | tr '+/' '-_'
 }
@@ -388,10 +440,12 @@ docker_args+=(
 )
 
 run_on_host_value=""
+mask_files_value=""
 if [ -f "${ENV_FILE}" ]; then
     echo "[pi-jail] Loading env from pi-jail.env"
     docker_args+=(--env-file "${ENV_FILE}")
     run_on_host_value="$(get_env_value "${ENV_FILE}" "RUN_ON_HOST")"
+    mask_files_value="$(get_env_value "${ENV_FILE}" "MASK_FILES")"
 else
     echo "[pi-jail] No pi-jail.env found, skipping."
 fi
@@ -429,6 +483,27 @@ add_run_on_host_commands "${run_on_host_value}"
 for ad_hoc_run_on_host_value in "${ad_hoc_run_on_host_values[@]}"; do
     add_run_on_host_commands "${ad_hoc_run_on_host_value}"
 done
+
+add_mask_files "${mask_files_value}"
+if [ "${NO_WORKSPACE}" = "false" ] && [ "${#mask_files[@]}" -gt 0 ]; then
+    mask_placeholder_path="${PI_DIR}/pi-jail-empty-mask-file"
+    : > "${mask_placeholder_path}"
+
+    for mask_file in "${mask_files[@]}"; do
+        host_mask_path="${WORKSPACE}/${mask_file}"
+        if [ ! -e "${host_mask_path}" ]; then
+            continue
+        fi
+
+        if [ -d "${host_mask_path}" ]; then
+            echo "[pi-jail] Warning: MASK_FILES entry '${mask_file}' refers to a directory; skipping." >&2
+            continue
+        fi
+
+        docker_args+=(-v "${mask_placeholder_path}:${CONTAINER_WORKDIR}/${mask_file}:ro")
+        echo "[pi-jail] Masking workspace file: ${mask_file}"
+    done
+fi
 
 if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
     run_on_host_joined="$(IFS=,; printf '%s' "${run_on_host_commands[*]}")"

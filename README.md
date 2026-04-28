@@ -16,6 +16,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - *optional* create `pi-jail.env` next to the script based on the example to load API keys and Git identity
   - If you want to use pi's internal login command, you don't need to put API keys in the env file
   - Put `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the env file if you want pi to be able to make commits (pushing is not supported by design)
+  - Set `MASK_FILES=.env,.npmrc` to hide selected workspace files from the container by mounting an empty file over them
   - On Windows, run `pi-jail.ps1` from PowerShell 7 (`pwsh`); Windows PowerShell 5 is not supported
   - On Windows or Linux, set `RUN_ON_HOST=<command>` to forward selected top-level commands from the container to the host; the command runs on the host in the folder where the launcher was started
 
@@ -23,6 +24,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - navigate to a project folder on your host machine
 - run `pi-jail` from there
 - any arguments you pass to `pi-jail` are forwarded to `pi` inside the container, except launcher flags like `--no-workspace` and `--run-on-host=<command>`
+- files listed in `MASK_FILES` are masked only if they exist in the mounted workspace; entries must be relative file paths such as `.env`, `.npmrc`, or `config/secrets.json`
   - example: `pi-jail -r` runs `pi -r` in the container, which starts pi with an interactive session browser
 - use pi (assuming you have an llm provider set up)
 

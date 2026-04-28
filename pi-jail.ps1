@@ -93,6 +93,60 @@ function Add-RunOnHostCommands {
     }
 }
 
+function Test-MaskFilePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    if ([System.IO.Path]::IsPathRooted($Path) -or $Path.Contains(':')) {
+        return $false
+    }
+
+    $segments = $Path.Split('/')
+    foreach ($segment in $segments) {
+        if ([string]::IsNullOrWhiteSpace($segment) -or $segment -in @('.', '..')) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Add-MaskFiles {
+    param(
+        [AllowNull()]
+        [string]$Value,
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.IList]$MaskFiles
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return
+    }
+
+    foreach ($entry in $Value.Split(',')) {
+        $maskFile = $entry.Trim().Replace('\', '/')
+        if ([string]::IsNullOrWhiteSpace($maskFile)) {
+            continue
+        }
+
+        if (-not (Test-MaskFilePath -Path $maskFile)) {
+            Write-Warning "[pi-jail] Ignoring invalid MASK_FILES entry '$maskFile'"
+            continue
+        }
+
+        if (-not $MaskFiles.Contains($maskFile)) {
+            $MaskFiles.Add($maskFile)
+        }
+    }
+}
+
 function New-HostExecToken {
     $bytes = New-Object byte[] 32
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
@@ -533,6 +587,7 @@ $dockerArgs += "-w"
 $dockerArgs += $ContainerWd
 
 $runOnHostValue = $null
+$maskFilesValue = $null
 $hostExecProcess = $null
 $hostExecPort = $null
 $hostExecToken = $null
@@ -545,6 +600,7 @@ if (Test-Path $EnvFile -PathType Leaf) {
     $dockerArgs += @("--env-file", $EnvFileHost)
 
     $runOnHostValue = Get-EnvValue -Path $EnvFile -Name "RUN_ON_HOST"
+    $maskFilesValue = Get-EnvValue -Path $EnvFile -Name "MASK_FILES"
 } else {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
 }
@@ -555,6 +611,35 @@ foreach ($value in $AdHocRunOnHostValues) {
     Add-RunOnHostCommands -Value $value -Commands $runOnHostCommandsList
 }
 $runOnHostCommands = @($runOnHostCommandsList)
+
+$maskFilesList = [System.Collections.Generic.List[string]]::new()
+Add-MaskFiles -Value $maskFilesValue -MaskFiles $maskFilesList
+$maskFiles = @($maskFilesList)
+if (-not $NoWorkspace -and $maskFiles.Count -gt 0) {
+    $maskPlaceholderPath = Join-Path $piDirHost "pi-jail-empty-mask-file"
+    [System.IO.File]::WriteAllBytes($maskPlaceholderPath, [byte[]]@())
+
+    foreach ($maskFile in $maskFiles) {
+        $hostMaskPath = $WorkspaceHost
+        foreach ($segment in $maskFile.Split('/')) {
+            $hostMaskPath = Join-Path $hostMaskPath $segment
+        }
+
+        if (-not (Test-Path -LiteralPath $hostMaskPath)) {
+            continue
+        }
+
+        if (Test-Path -LiteralPath $hostMaskPath -PathType Container) {
+            Write-Warning "[pi-jail] MASK_FILES entry '$maskFile' refers to a directory; skipping."
+            continue
+        }
+
+        $dockerArgs += "-v"
+        $dockerArgs += "${maskPlaceholderPath}:${ContainerWd}/${maskFile}:ro"
+        Write-Host "[pi-jail] Masking workspace file: $maskFile"
+    }
+}
+
 $appendSystemPrompt = $null
 
 if ($runOnHostCommands.Count -gt 0) {
