@@ -159,6 +159,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$PowerShellExecutable = Join-Path $PSHOME "pwsh.exe"
 
 function ConvertTo-HostExecBase64 {
     param(
