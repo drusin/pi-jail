@@ -3,12 +3,14 @@
 # ── Version args (override at build time if needed) ──────────────────────────
 ARG NODE_VERSION=24
 ARG JAVA_VERSION=25
+ARG PI_VERSION=latest
 
 # ── Node.js LTS base ─────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim
 
 # ── Re-declare after FROM (build args don't cross FROM boundaries) ────────────
 ARG JAVA_VERSION
+ARG PI_VERSION
 
 # ── System deps + Temurin JDK ────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -41,7 +43,7 @@ RUN usermod  -l user  node \
     && chown -R user:user /home/user /workspace
 
 # ── pi coding agent (installed as root, available globally) ─────────────────
-RUN npm install -g @mariozechner/pi-coding-agent
+RUN npm install -g @mariozechner/pi-coding-agent@${PI_VERSION}
 
 # ── Entrypoint + host-forwarding helper ─────────────────────────────────────
 COPY entrypoint.sh /entrypoint.sh
