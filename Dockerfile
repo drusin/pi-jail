@@ -2,17 +2,15 @@
 
 # ── Version args (override at build time if needed) ──────────────────────────
 ARG NODE_VERSION=24
-ARG JAVA_VERSION=25
 ARG PI_VERSION=latest
 
 # ── Node.js LTS base ─────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim
 
 # ── Re-declare after FROM (build args don't cross FROM boundaries) ────────────
-ARG JAVA_VERSION
 ARG PI_VERSION
 
-# ── System deps + Temurin JDK ────────────────────────────────────────────────
+# ── System deps + PowerShell 7 ──────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         curl \
@@ -26,13 +24,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-is-python3 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
-        | gpg --dearmor -o /usr/share/keyrings/adoptium.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/adoptium.gpg] \
-        https://packages.adoptium.net/artifactory/deb bookworm main" \
-        > /etc/apt/sources.list.d/adoptium.list \
+# Install PowerShell 7 (Microsoft repo)
+RUN wget -qO - https://packages.microsoft.com/keys/microsoft.asc \
+        | gpg --dearmor -o /usr/share/keyrings/microsoft.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/microsoft.gpg] \
+        https://packages.microsoft.com/debian/12/prod bookworm main" \
+        > /etc/apt/sources.list.d/microsoft.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends temurin-${JAVA_VERSION}-jdk \
+    && apt-get install -y --no-install-recommends powershell \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Create user 1000:1000 ────────────────────────────────────────────────────
