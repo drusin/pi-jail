@@ -450,6 +450,29 @@ else
     echo "[pi-jail] No pi-jail.env found, skipping."
 fi
 
+# ── Load local .pi-jail.env from workspace (overrides global) ───────────────
+LOCAL_ENV_FILE="${PWD}/.pi-jail.env"
+if [ -f "${LOCAL_ENV_FILE}" ]; then
+    echo "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
+    docker_args+=(--env-file "${LOCAL_ENV_FILE}")
+    local_run_on_host="$(get_env_value "${LOCAL_ENV_FILE}" "RUN_ON_HOST")"
+    local_mask_files="$(get_env_value "${LOCAL_ENV_FILE}" "MASK_FILES")"
+    if [ -n "${local_run_on_host}" ]; then
+        if [ -n "${run_on_host_value}" ]; then
+            run_on_host_value="${run_on_host_value},${local_run_on_host}"
+        else
+            run_on_host_value="${local_run_on_host}"
+        fi
+    fi
+    if [ -n "${local_mask_files}" ]; then
+        if [ -n "${mask_files_value}" ]; then
+            mask_files_value="${mask_files_value},${local_mask_files}"
+        else
+            mask_files_value="${local_mask_files}"
+        fi
+    fi
+fi
+
 run_on_host_commands=()
 append_system_prompt=""
 add_run_on_host_commands() {

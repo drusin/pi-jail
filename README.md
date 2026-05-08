@@ -14,6 +14,7 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 - build the image with `docker build -t pi-jail .`
 - put your os-spefic script somewhere in your PATH
 - *optional* create `pi-jail.env` next to the script based on the example to load API keys and Git identity
+  - You can also create a `.pi-jail.env` file in your project folder (the directory you run `pi-jail` from). It is loaded *after* the global `pi-jail.env`. Environment variables are merged (both files are passed via `--env-file`). For `RUN_ON_HOST` and `MASK_FILES`, the local values are **appended** to the global values (comma-separated).
   - If you want to use pi's internal login command, you don't need to put API keys in the env file
   - Put `GIT_AUTHOR_NAME` and `GIT_AUTHOR_EMAIL` in the env file if you want pi to be able to make commits (pushing is not supported by design)
   - Set `MASK_FILES=.env,.npmrc` to hide selected workspace files from the container by mounting an empty file over them

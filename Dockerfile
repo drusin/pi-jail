@@ -42,7 +42,7 @@ RUN usermod  -l user  node \
     && chown -R user:user /home/user /workspace
 
 # ── pi coding agent (installed as root, available globally) ─────────────────
-RUN npm install -g @mariozechner/pi-coding-agent@${PI_VERSION}
+RUN npm install -g @earendil-works/pi-coding-agent@${PI_VERSION}
 
 # ── Entrypoint + host-forwarding helper ─────────────────────────────────────
 COPY entrypoint.sh /entrypoint.sh
