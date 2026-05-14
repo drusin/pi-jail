@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PI_PACKAGE="@mariozechner/pi-coding-agent"
+PI_PACKAGE="@earendil-works/pi-coding-agent"
 DRY_RUN=false
 
 for arg in "$@"; do

@@ -4,7 +4,7 @@ param(
     [switch]$Dry
 )
 
-$Package = '@mariozechner/pi-coding-agent'
+$Package = '@earendil-works/pi-coding-agent'
 
 Write-Host "🔍 Querying npm for latest version of $Package..."
 
