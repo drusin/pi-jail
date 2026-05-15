@@ -5,6 +5,7 @@ $PiArgs = $args
 # Parse launcher flags
 $NoWorkspace = $false
 $AdHocRunOnHostValues = @()
+$EnvFiles = @()
 $FilteredArgs = @()
 for ($i = 0; $i -lt $PiArgs.Count; $i++) {
     $arg = $PiArgs[$i]
@@ -19,6 +20,15 @@ for ($i = 0; $i -lt $PiArgs.Count; $i++) {
 
         $i += 1
         $AdHocRunOnHostValues += $PiArgs[$i]
+    } elseif ($arg -like "--env=*") {
+        $EnvFiles += $arg.Substring("--env=".Length)
+    } elseif ($arg -eq "--env") {
+        if ($i + 1 -ge $PiArgs.Count) {
+            throw "[pi-jail] Error: --env requires a value."
+        }
+
+        $i += 1
+        $EnvFiles += $PiArgs[$i]
     } else {
         $FilteredArgs += $arg
     }
@@ -603,6 +613,61 @@ if (Test-Path $EnvFile -PathType Leaf) {
     $maskFilesValue = Get-EnvValue -Path $EnvFile -Name "MASK_FILES"
 } else {
     Write-Host "[pi-jail] No pi-jail.env found, skipping."
+}
+
+# ── Load local .pi-jail.env from workspace (overrides global) ───────────────
+$LocalEnvFile = Join-Path $Workspace ".pi-jail.env"
+if (Test-Path $LocalEnvFile -PathType Leaf) {
+    Write-Host "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
+    $LocalEnvFileHost = (Resolve-Path -LiteralPath $LocalEnvFile).Path
+    $dockerArgs += @("--env-file", $LocalEnvFileHost)
+
+    $localRunOnHost = Get-EnvValue -Path $LocalEnvFile -Name "RUN_ON_HOST"
+    $localMaskFiles = Get-EnvValue -Path $LocalEnvFile -Name "MASK_FILES"
+
+    if (-not [string]::IsNullOrWhiteSpace($localRunOnHost)) {
+        if (-not [string]::IsNullOrWhiteSpace($runOnHostValue)) {
+            $runOnHostValue = "$runOnHostValue,$localRunOnHost"
+        } else {
+            $runOnHostValue = $localRunOnHost
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($localMaskFiles)) {
+        if (-not [string]::IsNullOrWhiteSpace($maskFilesValue)) {
+            $maskFilesValue = "$maskFilesValue,$localMaskFiles"
+        } else {
+            $maskFilesValue = $localMaskFiles
+        }
+    }
+}
+
+# ── Load --env file(s) from CLI (highest priority) ─────────────────────────
+foreach ($envFile in $EnvFiles) {
+    if (Test-Path $envFile -PathType Leaf) {
+        Write-Host "[pi-jail] Loading env from --env file '$envFile' (highest priority)"
+        $envFileHost = (Resolve-Path -LiteralPath $envFile).Path
+        $dockerArgs += @("--env-file", $envFileHost)
+
+        $cliRunOnHost = Get-EnvValue -Path $envFile -Name "RUN_ON_HOST"
+        $cliMaskFiles = Get-EnvValue -Path $envFile -Name "MASK_FILES"
+
+        if (-not [string]::IsNullOrWhiteSpace($cliRunOnHost)) {
+            if (-not [string]::IsNullOrWhiteSpace($runOnHostValue)) {
+                $runOnHostValue = "$runOnHostValue,$cliRunOnHost"
+            } else {
+                $runOnHostValue = $cliRunOnHost
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($cliMaskFiles)) {
+            if (-not [string]::IsNullOrWhiteSpace($maskFilesValue)) {
+                $maskFilesValue = "$maskFilesValue,$cliMaskFiles"
+            } else {
+                $maskFilesValue = $cliMaskFiles
+            }
+        }
+    } else {
+        Write-Warning "[pi-jail] --env file '$envFile' not found, skipping."
+    }
 }
 
 $runOnHostCommandsList = [System.Collections.Generic.List[string]]::new()

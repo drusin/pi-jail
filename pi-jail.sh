@@ -363,6 +363,7 @@ fi
 # ── Parse command line arguments ─────────────────────────────────────────────
 NO_WORKSPACE=false
 ad_hoc_run_on_host_values=()
+env_files=()
 filtered_args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -380,6 +381,18 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ad_hoc_run_on_host_values+=("$2")
+            shift 2
+            ;;
+        --env=*)
+            env_files+=("${1#--env=}")
+            shift
+            ;;
+        --env)
+            if [[ $# -lt 2 ]]; then
+                echo "[pi-jail] Error: --env requires a value." >&2
+                exit 1
+            fi
+            env_files+=("$2")
             shift 2
             ;;
         *)
@@ -472,6 +485,32 @@ if [ -f "${LOCAL_ENV_FILE}" ]; then
         fi
     fi
 fi
+
+# ── Load --env file(s) from CLI (highest priority) ─────────────────────────
+for env_file in "${env_files[@]}"; do
+    if [ -f "${env_file}" ]; then
+        echo "[pi-jail] Loading env from --env file '${env_file}' (highest priority)"
+        docker_args+=(--env-file "${env_file}")
+        cli_run_on_host="$(get_env_value "${env_file}" "RUN_ON_HOST")"
+        cli_mask_files="$(get_env_value "${env_file}" "MASK_FILES")"
+        if [ -n "${cli_run_on_host}" ]; then
+            if [ -n "${run_on_host_value}" ]; then
+                run_on_host_value="${run_on_host_value},${cli_run_on_host}"
+            else
+                run_on_host_value="${cli_run_on_host}"
+            fi
+        fi
+        if [ -n "${cli_mask_files}" ]; then
+            if [ -n "${mask_files_value}" ]; then
+                mask_files_value="${mask_files_value},${cli_mask_files}"
+            else
+                mask_files_value="${cli_mask_files}"
+            fi
+        fi
+    else
+        echo "[pi-jail] Warning: --env file '${env_file}' not found, skipping." >&2
+    fi
+done
 
 run_on_host_commands=()
 append_system_prompt=""
