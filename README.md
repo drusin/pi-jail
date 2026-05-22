@@ -24,9 +24,13 @@ Run the [pi coding agent](https://pi.dev/) inside a disposable Docker container 
 ## Daily use
 - navigate to a project folder on your host machine
 - run `pi-jail` from there
-- any arguments you pass to `pi-jail` are forwarded to `pi` inside the container, except launcher flags like `--no-workspace` and `--run-on-host=<command>`
+- any arguments you pass to `pi-jail` are forwarded to `pi` inside the container, except launcher flags like `--no-workspace`, `--run-on-host=<command>`, and `--mount=<host-path>:<container-path>`
 - files listed in `MASK_FILES` are masked only if they exist in the mounted workspace; entries must be relative file paths such as `.env`, `.npmrc`, or `config/secrets.json`
   - example: `pi-jail -r` runs `pi -r` in the container, which starts pi with an interactive session browser
+- mount additional host directories into the container with `--mount` (repeatable):
+  - `pi-jail --mount /home/pi/dawid:/home/pi/dawid` makes your entire home directory accessible
+  - `pi-jail --mount /home/pi/dawid/Projekte:/projekte` mounts a specific subfolder at a custom path
+  - supports both `--mount /a:/b` and `--mount=/a:/b` syntax
 - use pi (assuming you have an llm provider set up)
 
 ## Set up dev enironments:

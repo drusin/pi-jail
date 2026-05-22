@@ -364,6 +364,7 @@ fi
 NO_WORKSPACE=false
 ad_hoc_run_on_host_values=()
 env_files=()
+mounts=()
 filtered_args=()
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -393,6 +394,18 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             env_files+=("$2")
+            shift 2
+            ;;
+        --mount=*)
+            mounts+=("${1#--mount=}")
+            shift
+            ;;
+        --mount)
+            if [[ $# -lt 2 ]]; then
+                echo "[pi-jail] Error: --mount requires a value." >&2
+                exit 1
+            fi
+            mounts+=("$2")
             shift 2
             ;;
         *)
@@ -465,6 +478,11 @@ if [ "${NO_WORKSPACE}" = "false" ]; then
 fi
 docker_args+=(
     -v "${PI_DIR}:/home/user/.pi"
+)
+for mount in "${mounts[@]}"; do
+    docker_args+=(-v "${mount}")
+done
+docker_args+=(
     -w "${CONTAINER_WORKDIR}"
 )
 

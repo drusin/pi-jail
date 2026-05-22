@@ -6,6 +6,7 @@ $PiArgs = $args
 $NoWorkspace = $false
 $AdHocRunOnHostValues = @()
 $EnvFiles = @()
+$Mounts = @()
 $FilteredArgs = @()
 for ($i = 0; $i -lt $PiArgs.Count; $i++) {
     $arg = $PiArgs[$i]
@@ -29,6 +30,15 @@ for ($i = 0; $i -lt $PiArgs.Count; $i++) {
 
         $i += 1
         $EnvFiles += $PiArgs[$i]
+    } elseif ($arg -like "--mount=*") {
+        $Mounts += $arg.Substring("--mount=".Length)
+    } elseif ($arg -eq "--mount") {
+        if ($i + 1 -ge $PiArgs.Count) {
+            throw "[pi-jail] Error: --mount requires a value."
+        }
+
+        $i += 1
+        $Mounts += $PiArgs[$i]
     } else {
         $FilteredArgs += $arg
     }
@@ -603,6 +613,10 @@ if (-not $NoWorkspace) {
 }
 $dockerArgs += "-v"
 $dockerArgs += "${piDirHost}:/home/user/.pi"
+foreach ($mount in $Mounts) {
+    $dockerArgs += "-v"
+    $dockerArgs += $mount
+}
 $dockerArgs += "-w"
 $dockerArgs += $ContainerWd
 
