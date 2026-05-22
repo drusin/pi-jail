@@ -579,9 +579,19 @@ if (-not (Test-Path $piDir -PathType Container)) {
 $WorkspaceHost = (Resolve-Path -LiteralPath $Workspace).Path
 $piDirHost     = (Resolve-Path -LiteralPath $piDir).Path
 
+# ── Detect non-interactive mode (printing/exporting) ───────────────────────────
+$IsInteractive = $true
+foreach ($arg in $FilteredArgs) {
+    if ($arg -in @('-p', '--print', '--mode', '--export')) {
+        $IsInteractive = $false
+        break
+    }
+}
+$TtyFlag = if ($IsInteractive) { "-it" } else { "-i" }
+
 # ── Base docker run args ─────────────────────────────────────────────────────
 $dockerArgs = @(
-    "run", "--rm", "-it",
+    "run", "--rm", $TtyFlag,
     "--name", $ContainerName,
     "--user", "1000:1000",
     "--add-host", "host.docker.internal=host-gateway",

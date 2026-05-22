@@ -434,11 +434,27 @@ mkdir -p "${PI_DIR}"
 LOCAL_UID="$(id -u)"
 LOCAL_GID="$(id -g)"
 
+# ── Detect non-interactive mode (printing/exporting) ───────────────────────────
+is_interactive=true
+for arg in "$@"; do
+    case $arg in
+        -p|--print|--mode|--export)
+            is_interactive=false
+            break
+            ;;
+    esac
+done
+
+tty_flag="-it"
+if [ "${is_interactive}" = "false" ]; then
+    tty_flag="-i"
+fi
+
 # ── Base docker run args ─────────────────────────────────────────────────────
 docker_args=(
     run
     --rm
-    -it
+    "${tty_flag}"
     --name "${CONTAINER_NAME}"
     --user "${LOCAL_UID}:${LOCAL_GID}"
     --add-host host.docker.internal=host-gateway
