@@ -25,7 +25,10 @@ fi
 echo "✅ Latest version: ${VERSION}"
 echo ""
 
-DOCKER_CMD=(docker build --build-arg "PI_VERSION=${VERSION}" -t pi-jail .)
+LOCAL_UID=$(id -u)
+LOCAL_GID=$(id -g)
+
+DOCKER_CMD=(docker build --build-arg "PI_VERSION=${VERSION}" --build-arg "UID=${LOCAL_UID}" --build-arg "GID=${LOCAL_GID}" -t pi-jail .)
 
 if [ "$DRY_RUN" = true ]; then
     echo "🏗️  Dry run — would execute:"

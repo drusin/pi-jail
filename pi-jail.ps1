@@ -559,13 +559,6 @@ try {
 '@
 }
 
-# ── Build image if not present ───────────────────────────────────────────────
-$imageExists = docker image inspect $ImageName 2>$null
-if (-not $imageExists) {
-    Write-Host "[pi-jail] Building image '$ImageName'..."
-    docker build -t $ImageName $ScriptDir
-}
-
 docker container inspect $ContainerName *> $null
 if ($LASTEXITCODE -eq 0) {
     $containerRunning = (docker container inspect --format '{{.State.Running}}' $ContainerName).Trim()
@@ -604,6 +597,7 @@ $dockerArgs = @(
     "run", "--rm", $TtyFlag,
     "--name", $ContainerName,
     "--user", "1000:1000",
+    "-e", "HOME=/home/user",
     "--add-host", "host.docker.internal=host-gateway",
     "-e", "HOST_SYSTEM=windows"
 )

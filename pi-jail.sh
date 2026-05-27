@@ -354,12 +354,6 @@ PL
     chmod +x "${path}"
 }
 
-# ── Build image if not present ───────────────────────────────────────────────
-if ! docker image inspect "${IMAGE_NAME}" &>/dev/null; then
-    echo "[pi-jail] Building image '${IMAGE_NAME}'..."
-    docker build -t "${IMAGE_NAME}" "${SCRIPT_DIR}"
-fi
-
 # ── Parse command line arguments ─────────────────────────────────────────────
 NO_WORKSPACE=false
 ad_hoc_run_on_host_values=()
@@ -470,6 +464,7 @@ docker_args=(
     "${tty_flag}"
     --name "${CONTAINER_NAME}"
     --user "${LOCAL_UID}:${LOCAL_GID}"
+    -e "HOME=/home/user"
     --add-host host.docker.internal=host-gateway
     -e "HOST_SYSTEM=linux"
 )

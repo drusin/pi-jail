@@ -3,12 +3,16 @@
 # ── Version args (override at build time if needed) ──────────────────────────
 ARG NODE_VERSION=24
 ARG PI_VERSION=latest
+ARG UID=1000
+ARG GID=1000
 
 # ── Node.js LTS base ─────────────────────────────────────────────────────────
 FROM node:${NODE_VERSION}-bookworm-slim
 
 # ── Re-declare after FROM (build args don't cross FROM boundaries) ────────────
 ARG PI_VERSION
+ARG UID
+ARG GID
 
 # ── System deps + PowerShell 7 ──────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -34,10 +38,14 @@ RUN wget -qO - https://packages.microsoft.com/keys/microsoft.asc \
     && apt-get install -y --no-install-recommends powershell \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Create user 1000:1000 ────────────────────────────────────────────────────
-RUN usermod  -l user  node \
-    && groupmod -n user node \
-    && usermod  -d /home/user -m user \
+# ── Create user matching build-time UID/GID ──────────────────────────────────
+RUN if [ "${UID}" = "1000" ]; then \
+        usermod -l user node \
+        && groupmod -n user node; \
+    else \
+        groupadd -g ${GID} user \
+        && useradd -m -u ${UID} -g ${GID} -d /home/user user; \
+    fi \
     && mkdir -p /home/user/.pi /workspace \
     && chown -R user:user /home/user /workspace
 
