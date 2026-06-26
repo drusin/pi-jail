@@ -4,6 +4,7 @@ $PiArgs = $args
 
 # Parse launcher flags
 $NoWorkspace = $false
+$Silent = $false
 $AdHocRunOnHostValues = @()
 $EnvFiles = @()
 $Mounts = @()
@@ -12,6 +13,8 @@ for ($i = 0; $i -lt $PiArgs.Count; $i++) {
     $arg = $PiArgs[$i]
     if ($arg -eq "--no-workspace") {
         $NoWorkspace = $true
+    } elseif ($arg -eq "--silent") {
+        $Silent = $true
     } elseif ($arg -like "--run-on-host=*") {
         $AdHocRunOnHostValues += $arg.Substring("--run-on-host=".Length)
     } elseif ($arg -eq "--run-on-host") {
@@ -157,7 +160,7 @@ function Add-MaskFiles {
         }
 
         if (-not (Test-MaskFilePath -Path $maskFile)) {
-            Write-Warning "[pi-jail] Ignoring invalid MASK_FILES entry '$maskFile'"
+            Write-Warn "[pi-jail] Ignoring invalid MASK_FILES entry '$maskFile'"
             continue
         }
 
@@ -559,6 +562,9 @@ try {
 '@
 }
 
+function Write-Log   { if (-not $Silent) { Write-Host @args } }
+function Write-Warn  { if (-not $Silent) { Write-Warning @args } }
+
 docker container inspect $ContainerName *> $null
 if ($LASTEXITCODE -eq 0) {
     $containerRunning = (docker container inspect --format '{{.State.Running}}' $ContainerName).Trim()
@@ -566,14 +572,14 @@ if ($LASTEXITCODE -eq 0) {
         throw "[pi-jail] Error: container '$ContainerName' is already running."
     }
 
-    Write-Host "[pi-jail] Removing stopped container '$ContainerName'..."
+    Write-Log "[pi-jail] Removing stopped container '$ContainerName'..."
     docker rm $ContainerName *> $null
 }
 
 # ── Ensure ~/.pi exists on host ──────────────────────────────────────────────
 $piDir = Join-Path $HomeDir ".pi"
 if (-not (Test-Path $piDir -PathType Container)) {
-    Write-Host "[pi-jail] Creating ~/.pi..."
+    Write-Log "[pi-jail] Creating ~/.pi..."
     New-Item -ItemType Directory -Path $piDir | Out-Null
 }
 
@@ -590,11 +596,10 @@ foreach ($arg in $FilteredArgs) {
         break
     }
 }
-$TtyFlag = if ($IsInteractive) { "-it" } else { "-i" }
+$TtyFlag = if ($IsInteractive) { @("-it") } elseif ([Console]::IsInputRedirected) { @("-i") } else { @() }
 
 # ── Base docker run args ─────────────────────────────────────────────────────
-$dockerArgs = @(
-    "run", "--rm", $TtyFlag,
+$dockerArgs = @("run", "--rm") + $TtyFlag + @(
     "--name", $ContainerName,
     "--user", "1000:1000",
     "-e", "HOME=/home/user",
@@ -623,20 +628,20 @@ $hostExecScriptPath = $null
 
 # ── Load pi-jail.env if present ──────────────────────────────────────────────
 if (Test-Path $EnvFile -PathType Leaf) {
-    Write-Host "[pi-jail] Loading env from pi-jail.env"
+    Write-Log "[pi-jail] Loading env from pi-jail.env"
     $EnvFileHost = (Resolve-Path -LiteralPath $EnvFile).Path
     $dockerArgs += @("--env-file", $EnvFileHost)
 
     $runOnHostValue = Get-EnvValue -Path $EnvFile -Name "RUN_ON_HOST"
     $maskFilesValue = Get-EnvValue -Path $EnvFile -Name "MASK_FILES"
 } else {
-    Write-Host "[pi-jail] No pi-jail.env found, skipping."
+    Write-Log "[pi-jail] No pi-jail.env found, skipping."
 }
 
 # ── Load local .pi-jail.env from workspace (overrides global) ───────────────
 $LocalEnvFile = Join-Path $Workspace ".pi-jail.env"
 if (Test-Path $LocalEnvFile -PathType Leaf) {
-    Write-Host "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
+    Write-Log "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
     $LocalEnvFileHost = (Resolve-Path -LiteralPath $LocalEnvFile).Path
     $dockerArgs += @("--env-file", $LocalEnvFileHost)
 
@@ -662,7 +667,7 @@ if (Test-Path $LocalEnvFile -PathType Leaf) {
 # ── Load --env file(s) from CLI (highest priority) ─────────────────────────
 foreach ($envFile in $EnvFiles) {
     if (Test-Path $envFile -PathType Leaf) {
-        Write-Host "[pi-jail] Loading env from --env file '$envFile' (highest priority)"
+        Write-Log "[pi-jail] Loading env from --env file '$envFile' (highest priority)"
         $envFileHost = (Resolve-Path -LiteralPath $envFile).Path
         $dockerArgs += @("--env-file", $envFileHost)
 
@@ -684,7 +689,7 @@ foreach ($envFile in $EnvFiles) {
             }
         }
     } else {
-        Write-Warning "[pi-jail] --env file '$envFile' not found, skipping."
+        Write-Warn "[pi-jail] --env file '$envFile' not found, skipping."
     }
 }
 
@@ -713,13 +718,13 @@ if (-not $NoWorkspace -and $maskFiles.Count -gt 0) {
         }
 
         if (Test-Path -LiteralPath $hostMaskPath -PathType Container) {
-            Write-Warning "[pi-jail] MASK_FILES entry '$maskFile' refers to a directory; skipping."
+            Write-Warn "[pi-jail] MASK_FILES entry '$maskFile' refers to a directory; skipping."
             continue
         }
 
         $dockerArgs += "-v"
         $dockerArgs += "${maskPlaceholderPath}:${ContainerWd}/${maskFile}:ro"
-        Write-Host "[pi-jail] Masking workspace file: $maskFile"
+        Write-Log "[pi-jail] Masking workspace file: $maskFile"
     }
 }
 
@@ -757,7 +762,7 @@ if ($runOnHostCommands.Count -gt 0) {
 
 # ── Run ──────────────────────────────────────────────────────────────────────
 try {
-    Write-Host "[pi-jail] Starting pi in: $ContainerWd"
+    Write-Log "[pi-jail] Starting pi in: $ContainerWd"
     $dockerArgs += @($ImageName, "pi")
     if ($appendSystemPrompt) { $dockerArgs += @("--append-system-prompt", $appendSystemPrompt) }
     if ($FilteredArgs) { $dockerArgs += $FilteredArgs }

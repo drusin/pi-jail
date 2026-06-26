@@ -77,7 +77,7 @@ add_mask_files() {
         [ -z "${mask_file}" ] && continue
 
         if ! valid_mask_file_path "${mask_file}"; then
-            echo "[pi-jail] Warning: ignoring invalid MASK_FILES entry '${mask_file}'" >&2
+            warn "[pi-jail] Warning: ignoring invalid MASK_FILES entry '${mask_file}'"
             continue
         fi
 
@@ -356,6 +356,7 @@ PL
 
 # ── Parse command line arguments ─────────────────────────────────────────────
 NO_WORKSPACE=false
+SILENT=false
 ad_hoc_run_on_host_values=()
 env_files=()
 mounts=()
@@ -364,6 +365,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         --no-workspace)
             NO_WORKSPACE=true
+            shift
+            ;;
+        --silent)
+            SILENT=true
             shift
             ;;
         --run-on-host=*)
@@ -410,6 +415,9 @@ while [[ $# -gt 0 ]]; do
 done
 set -- "${filtered_args[@]}"
 
+log()  { [ "${SILENT}" = "false" ] && echo "$@" || true; }
+warn() { [ "${SILENT}" = "false" ] && echo "$@" >&2 || true; }
+
 # ── Resolve workspace: mount current folder under /workspace/<dirname> ──────
 WORKSPACE="${PWD}"
 FOLDER_NAME="$(basename "${WORKSPACE}")"
@@ -429,7 +437,7 @@ if docker container inspect "${CONTAINER_NAME}" &>/dev/null; then
         exit 1
     fi
 
-    echo "[pi-jail] Removing stopped container '${CONTAINER_NAME}'..."
+    log "[pi-jail] Removing stopped container '${CONTAINER_NAME}'..."
     docker rm "${CONTAINER_NAME}" >/dev/null
 fi
 
@@ -454,14 +462,21 @@ done
 
 tty_flag="-it"
 if [ "${is_interactive}" = "false" ]; then
-    tty_flag="-i"
+    # Only forward stdin if it's actually a pipe/redirect on the host.
+    # Without this check, pi sees stdin as an open non-TTY and waits for
+    # input that never arrives when the prompt was passed as a CLI argument.
+    if [ ! -t 0 ]; then
+        tty_flag="-i"
+    else
+        tty_flag=""
+    fi
 fi
 
 # ── Base docker run args ─────────────────────────────────────────────────────
 docker_args=(
     run
     --rm
-    "${tty_flag}"
+    ${tty_flag:+"${tty_flag}"}
     --name "${CONTAINER_NAME}"
     --user "${LOCAL_UID}:${LOCAL_GID}"
     -e "HOME=/home/user"
@@ -484,18 +499,18 @@ docker_args+=(
 run_on_host_value=""
 mask_files_value=""
 if [ -f "${ENV_FILE}" ]; then
-    echo "[pi-jail] Loading env from pi-jail.env"
+    log "[pi-jail] Loading env from pi-jail.env"
     docker_args+=(--env-file "${ENV_FILE}")
     run_on_host_value="$(get_env_value "${ENV_FILE}" "RUN_ON_HOST")"
     mask_files_value="$(get_env_value "${ENV_FILE}" "MASK_FILES")"
 else
-    echo "[pi-jail] No pi-jail.env found, skipping."
+    log "[pi-jail] No pi-jail.env found, skipping."
 fi
 
 # ── Load local .pi-jail.env from workspace (overrides global) ───────────────
 LOCAL_ENV_FILE="${PWD}/.pi-jail.env"
 if [ -f "${LOCAL_ENV_FILE}" ]; then
-    echo "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
+    log "[pi-jail] Loading env from workspace .pi-jail.env (overrides global)"
     docker_args+=(--env-file "${LOCAL_ENV_FILE}")
     local_run_on_host="$(get_env_value "${LOCAL_ENV_FILE}" "RUN_ON_HOST")"
     local_mask_files="$(get_env_value "${LOCAL_ENV_FILE}" "MASK_FILES")"
@@ -518,7 +533,7 @@ fi
 # ── Load --env file(s) from CLI (highest priority) ─────────────────────────
 for env_file in "${env_files[@]}"; do
     if [ -f "${env_file}" ]; then
-        echo "[pi-jail] Loading env from --env file '${env_file}' (highest priority)"
+        log "[pi-jail] Loading env from --env file '${env_file}' (highest priority)"
         docker_args+=(--env-file "${env_file}")
         cli_run_on_host="$(get_env_value "${env_file}" "RUN_ON_HOST")"
         cli_mask_files="$(get_env_value "${env_file}" "MASK_FILES")"
@@ -537,7 +552,7 @@ for env_file in "${env_files[@]}"; do
             fi
         fi
     else
-        echo "[pi-jail] Warning: --env file '${env_file}' not found, skipping." >&2
+        warn "[pi-jail] Warning: --env file '${env_file}' not found, skipping."
     fi
 done
 
@@ -587,12 +602,12 @@ if [ "${NO_WORKSPACE}" = "false" ] && [ "${#mask_files[@]}" -gt 0 ]; then
         fi
 
         if [ -d "${host_mask_path}" ]; then
-            echo "[pi-jail] Warning: MASK_FILES entry '${mask_file}' refers to a directory; skipping." >&2
+            warn "[pi-jail] Warning: MASK_FILES entry '${mask_file}' refers to a directory; skipping."
             continue
         fi
 
         docker_args+=(-v "${mask_placeholder_path}:${CONTAINER_WORKDIR}/${mask_file}:ro")
-        echo "[pi-jail] Masking workspace file: ${mask_file}"
+        log "[pi-jail] Masking workspace file: ${mask_file}"
     done
 fi
 
@@ -626,7 +641,7 @@ if [ "${#run_on_host_commands[@]}" -gt 0 ]; then
     )
 fi
 
-echo "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
+log "[pi-jail] Starting pi in: ${CONTAINER_WORKDIR}"
 pi_args=()
 if [ -n "${append_system_prompt}" ]; then
     pi_args+=(--append-system-prompt "${append_system_prompt}")
